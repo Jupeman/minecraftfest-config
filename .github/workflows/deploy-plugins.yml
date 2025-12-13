@@ -2,10 +2,9 @@ name: Deploy plugin jars to MSM servers
 
 on:
   push:
-	branches:
-	  - main
+	branches: ["main"]
   workflow_dispatch:
-
+	  
 concurrency:
   group: minecraftfest-deploy
   cancel-in-progress: true
