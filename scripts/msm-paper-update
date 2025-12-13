@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+GROUP="paper"
+DEFAULT_VERSION="1.21.10"
+
+VERSION="${1:-$DEFAULT_VERSION}"
+DIR="/opt/msm/jars/${GROUP}"
+
+echo "==> Paper update for version: ${VERSION}"
+
+echo "==> Checking latest Paper build for ${VERSION}..."
+LATEST_BUILD="$(
+  curl -fsSL "https://api.papermc.io/v2/projects/paper/versions/${VERSION}" \
+  | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d["builds"][-1])'
+)"
+
+JAR_NAME="paper-${VERSION}-${LATEST_BUILD}.jar"
+DOWNLOAD_URL="https://api.papermc.io/v2/projects/paper/versions/${VERSION}/builds/${LATEST_BUILD}/downloads/${JAR_NAME}"
+
+echo "==> Latest build: ${LATEST_BUILD}"
+echo "==> Download URL: ${DOWNLOAD_URL}"
+
+echo "==> Updating MSM jargroup URL..."
+msm jargroup changeurl "${GROUP}" "${DOWNLOAD_URL}"
+
+echo "==> Downloading via MSM..."
+msm jargroup getlatest "${GROUP}"
+
+echo "==> Pointing paper-current.jar to newest jar in ${DIR}..."
+cd "${DIR}"
+LATEST_FILE="$(ls -1t *paper-${VERSION}-*.jar 2>/dev/null | head -n 1 || true)"
+if [[ -z "${LATEST_FILE}" ]]; then
+  echo "ERROR: No paper jar found in ${DIR}"
+  exit 1
+fi
+
+ln -sf "${LATEST_FILE}" paper-current.jar
+echo "paper-current.jar -> ${LATEST_FILE}"
+
+echo "==> Done. Restart manually when ready:"
+echo "   msm <server> restart now"
+echo "   msm restart now   # restarts all active servers"
