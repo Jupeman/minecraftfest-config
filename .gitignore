@@ -1,0 +1,6 @@
+.DS_Store
+
+# Never track server runtime/world data
+**/world*/
+**/logs/
+**/*.log
