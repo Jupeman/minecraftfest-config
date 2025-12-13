@@ -1,26 +1,23 @@
 name: Deploy plugin jars to MSM servers
 
-on:
+"on":
   push:
-	branches: ["main"]
+    branches: ["main"]
   workflow_dispatch:
-	  
+
 concurrency:
   group: minecraftfest-deploy
   cancel-in-progress: true
 
 jobs:
   deploy:
-	runs-on:
-	  - self-hosted
-	  - minecraftfest
+    runs-on: [self-hosted, minecraftfest]
+    permissions:
+      contents: read
 
-	permissions:
-	  contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-	steps:
-	  - name: Checkout
-		uses: actions/checkout@v4
-
-	  - name: Deploy plugin jars
-		run: ./scripts/deploy-plugins.sh
+      - name: Deploy plugin jars
+        run: ./scripts/deploy-plugins.sh
