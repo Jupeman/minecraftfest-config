@@ -2,7 +2,8 @@ name: Deploy plugin jars to MSM servers
 
 on:
   push:
-	branches: ["main"]
+	branches:
+	  - main
   workflow_dispatch:
 
 concurrency:
@@ -11,7 +12,10 @@ concurrency:
 
 jobs:
   deploy:
-	runs-on: [self-hosted, minecraftfest]
+	runs-on:
+	  - self-hosted
+	  - minecraftfest
+
 	permissions:
 	  contents: read
 
