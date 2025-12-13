@@ -35,9 +35,11 @@ for S in "${SERVERS[@]}"; do
 
   echo "==> ${S}"
   # Copy only .jar files; do not touch plugin data folders.
-  rsync -av --checksum \
-	--include='*.jar' --exclude='*' \
-	"${SRC}/" "${DST}/"
+  rsync -rv --delete \
+    --no-owner --no-group --no-perms \
+    --include='*.jar' \
+    --exclude='*' \
+    "$SRC/" "$DST/"
 done
 
 echo
