@@ -80,7 +80,7 @@ MSM paper jargroup storage
 	
 How to run
 	
-From the repo root (or wherever your script lives), run:
+From the repo root on game-server:  /srv/minecraftfest-config, run:
 ./scripts/deploy-plugins.sh
 
 If it’s not executable yet:
