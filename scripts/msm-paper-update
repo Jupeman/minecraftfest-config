@@ -2,7 +2,7 @@
 set -euo pipefail
 
 GROUP="paper"
-DEFAULT_VERSION="1.21.10"
+DEFAULT_VERSION="1.21.11"
 
 VERSION="${1:-$DEFAULT_VERSION}"
 DIR="/opt/msm/jars/${GROUP}"
