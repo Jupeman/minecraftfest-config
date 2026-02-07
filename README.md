@@ -1,132 +1,156 @@
-MinecraftFest Ops Scripts (notes as of 12/23/25)
+MinecraftFest Ops Scripts
 
-This repo includes two “ops” helpers for MSM-managed Paper servers:
-	•	deploy-plugins.sh — syncs shared plugin .jar files into every MSM server’s plugins/ folder (without touching plugin data folders).
-	•	msm-paper-update — updates the MSM paper jargroup to the latest Paper build for a given Minecraft version, downloads it, and repoints paper-current.jar.
+## Quick Reference
 
-Both scripts do not restart servers — you choose when to restart.
+All commands below are run **on the game server**. SSH in first:
 
-⸻
+```
+ssh minecraft
+```
 
-Prerequisites
+### 1. Pull Latest Config Changes to the Server
 
-Common
-	•	You’re running MSM with servers under:
-	•	MSM_SERVERS_DIR=/opt/msm/servers
-	•	You have shell access on the host and can run commands with permissions to read/write under /opt/msm.
+```
+cd /srv/minecraftfest-config && git pull
+```
 
-deploy-plugins.sh
-	•	rsync installed
-	•	A shared plugin jar staging directory exists:
-	•	shared/plugin-jars/ (relative to repo root)
+Or as a one-liner from your local machine:
 
-msm-paper-update
-	•	curl
-	•	python3
-	•	MSM installed and msm available in PATH
-	•	Outbound HTTPS access allowed to:
-	•	https://api.papermc.io
+```
+ssh minecraft "cd /srv/minecraftfest-config && git pull"
+```
 
-⸻
+### 2. Deploy Plugins to All Servers
 
-Directory Layout Expectations
+Syncs jar files from `shared/plugin-jars/` into every MSM server's `plugins/` folder. Does **not** touch plugin data/config folders — only `.jar` files.
 
-Shared plugin jars (source of truth)
+```
+cd /srv/minecraftfest-config
+./scripts/deploy-plugins.sh
+```
 
-<repo-root>/
+Then restart servers to apply:
+
+```
+msm <server> restart now    # one server
+msm restart now             # all active servers
+```
+
+### 3. Update Paper to Latest Build
+
+Downloads the latest Paper build for the configured Minecraft version (currently defaults to `1.21.11`) and repoints the `paper-current.jar` symlink.
+
+```
+cd /srv/minecraftfest-config
+./scripts/msm-paper-update
+```
+
+To target a specific Minecraft version:
+
+```
+./scripts/msm-paper-update 1.21.11
+```
+
+Then restart servers to apply:
+
+```
+msm <server> restart now    # one server
+msm restart now             # all active servers
+```
+
+### Typical Workflow
+
+1. Make changes locally (add/remove plugin jars, edit scripts, etc.)
+2. Commit and push to GitHub
+3. Pull to the server: `ssh minecraft "cd /srv/minecraftfest-config && git pull"`
+4. Run the relevant script(s) on the server
+5. Restart servers when ready
+
+---
+
+## Prerequisites
+
+### Common
+- MSM installed with servers under `/opt/msm/servers`
+- Shell access on the host with read/write permissions under `/opt/msm`
+
+### deploy-plugins.sh
+- `rsync` installed
+- Shared plugin jar staging directory at `shared/plugin-jars/` (relative to repo root)
+
+### msm-paper-update
+- `curl`
+- `python3`
+- MSM installed and `msm` available in PATH
+- Outbound HTTPS access to `https://api.papermc.io`
+
+---
+
+## Directory Layout
+
+```
+/srv/minecraftfest-config/          <-- this repo on the server
   shared/
-	plugin-jars/
-	  LuckPerms.jar
-	  ...etc...
-	  
-MSM servers
-/opt/msm/servers/<server-name>/plugins/
+    plugin-jars/
+      LuckPerms.jar
+      ...
+  scripts/
+    deploy-plugins.sh
+    msm-paper-update
+
+/opt/msm/servers/<server>/plugins/  <-- where deploy-plugins.sh syncs to
   <plugin>.jar
-  <plugin-data-folders>/   # NOT modified by deploy script
- 
-MSM paper jargroup storage
-/opt/msm/jars/paper/
-  paper-1.21.10-<build>.jar
-  paper-current.jar  -> symlink to newest jar
-  
+  <plugin-data-folders>/            <-- NOT modified by deploy script
 
-1) deploy-plugins.sh
-  
-  What it does
-	  •	Finds all MSM server directories under /opt/msm/servers
-	  •	For each server:
-	  •	Ensures <server>/plugins/ exists
-	  •	Uses rsync to copy only *.jar from shared/plugin-jars/ into <server>/plugins/
-	  •	Uses --delete within the filtered jar set (see safety notes)
-  
-  ✅ Does not touch plugin config/data folders in plugins/ (because it only includes *.jar).
-  
-  Safety notes (read this once, save future-you)
-  
-  This rsync block is intentionally constrained:
-  rsync -rv --delete \
-	--no-owner --no-group --no-perms \
-	--include='*.jar' \
-	--exclude='*' \
-	"$SRC/" "$DST/"
-	
-	•	--include='*.jar' and --exclude='*' means:
-		•	Only jar files are considered.
-		•	Plugin folders and non-jar files are ignored (not deleted, not overwritten).
-		•	--delete applies to the included set:
-		•	If you remove a jar from shared/plugin-jars/, it will be removed from each server’s plugins/.
-	
-	Translation: manage jars centrally; plugin data stays put.
-	
-How to run
-	
-From the repo root on game-server:  /srv/minecraftfest-config, run:
-./scripts/deploy-plugins.sh
+/opt/msm/jars/paper/                <-- where msm-paper-update downloads to
+  paper-1.21.11-<build>.jar
+  paper-current.jar                 <-- symlink to newest jar
+```
 
-If it’s not executable yet:
-chmod +x scripts/deploy-plugins.sh
-./scripts/deploy-plugins.sh
+---
 
-Expected output
+## Script Details
 
-You’ll see something like:
-==> Syncing plugin jars from:
-	<repo-root>/shared/plugin-jars
-==> To MSM servers under:
-	/opt/msm/servers
+### deploy-plugins.sh
 
-==> whimbleton
-sending incremental file list
-...
+Uses a constrained rsync to copy only `.jar` files:
 
-Done. Restart servers manually when you want changes to take effect.
+```
+rsync -rv --delete \
+  --no-owner --no-group --no-perms \
+  --include='*.jar' \
+  --exclude='*' \
+  "$SRC/" "$DST/"
+```
 
-After running: apply changes
+- `--include='*.jar'` + `--exclude='*'` means only jar files are considered
+- Plugin folders and non-jar files are ignored (not deleted, not overwritten)
+- `--delete` applies only to the included set — if you remove a jar from `shared/plugin-jars/`, it gets removed from each server's `plugins/`
 
-Plugins generally load on server start (or on plugin reload, which is… spicy). Best practice:
+**Translation:** manage jars centrally; plugin data stays put.
 
-msm <server> restart now
+### msm-paper-update
 
-Restart all active servers if desired:
+1. Queries the PaperMC Fill v3 API for the latest build
+2. Updates the MSM jargroup URL via `msm jargroup changeurl`
+3. Downloads the jar via `msm jargroup getlatest`
+4. Repoints `paper-current.jar` symlink to the newest downloaded jar
 
-msm restart now
+---
 
-Troubleshooting
+## Troubleshooting
 
-“shared/plugin-jars does not exist”
-
-Create it and add jars:
-
+**"shared/plugin-jars does not exist"** — Create it and add jars:
+```
 mkdir -p shared/plugin-jars
+```
 
-“MSM servers dir not found: /opt/msm/servers”
-
-Confirm MSM is installed where expected:
-
+**"MSM servers dir not found: /opt/msm/servers"** — Confirm MSM is installed:
+```
 ls -la /opt/msm
+```
 
-Permission denied writing to server plugins folders
-
-Run as a user with access to /opt/msm/servers (or use sudo):
-
+**Permission denied writing to server plugins folders** — Run as a user with access to `/opt/msm/servers` (or use sudo):
+```
 sudo ./scripts/deploy-plugins.sh
+```
