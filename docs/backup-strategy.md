@@ -70,7 +70,9 @@ snapshot waits for it.
 - `/opt/velocity`
 - `/etc/msm.conf`, `/etc/cron.d/msm`, and charlie's crontab
 - `/usr/local/sbin` (these backup scripts and the fan curve script)
-- `/etc/systemd/system/mc-*` units, `velocity.service`, and `case-fan-curve.service`
+- `/etc/systemd/system/mc-*` units and their `.service.d` drop-ins, `velocity.service`,
+  and `case-fan-curve.service`
+- `/etc/sensomatic/checks.conf` (the Sens-o-Matic check IDs, not the tokens)
 
 ## Checking On It
 
@@ -206,6 +208,41 @@ credentials, and use the password from the password manager.
 
 MSM's zips are in `/opt/msm/archives/worlds/<server>/<world>/`, named by date. They
 need no password; unzip one into the server's `worldstorage` with the server stopped.
+
+## Alerts
+
+Sens-o-Matic watches the server through four heartbeat checks on the host **Game
+Server** (Infra, then Health Checks). The server pings a check only when things are
+good, so an alert means the pings stopped: a job failed, hung, or never ran, or the
+server or its network is down. The alert says only "No heartbeat within N seconds";
+the reason is on the server.
+
+| Check | Pinged by | Alerts after about |
+|---|---|---|
+| Minecraft hourly backup | each successful hourly snapshot | 3 to 4 hours |
+| Minecraft NAS copy | each successful nightly NAS copy | 28 to 42 hours |
+| Minecraft zip cleanup | each successful nightly zip cleanup | 28 to 42 hours |
+| Minecraft server health | `mc-health-check`, every 15 minutes, when everything below passes | 45 to 60 minutes |
+
+The health check passes only when the mirror shows `[UU]`, both mirror drives pass
+SMART, `/` and the mirror each have at least 15% free, Velocity is active, Lobby and
+Whimbleton are running, and no systemd unit has failed.
+
+**When an alert arrives**, start with `sudo mc-backup-status`. For the health check,
+`journalctl -u mc-health -n 20` lists each failing item as a `PROBLEM:` line. The check
+recovers by itself on the next good run.
+
+How it is wired:
+
+- `/usr/local/sbin/som-ping <name>` sends the ping. It never fails the job it reports
+  on; a ping that cannot be delivered is logged as `som-ping: ping for ... failed`.
+- The backup jobs call it from `/etc/systemd/system/<job>.service.d/sensomatic.conf`,
+  which runs only after the job succeeds.
+- `/etc/sensomatic/` (root only) holds `checks.conf` (check IDs) and one `<name>.token`
+  per check. To replace a token, issue a new one from the check's heartbeat setup in
+  Sens-o-Matic and write it to that file; the old one stops working immediately.
+- Planned maintenance (a reboot, taking Lobby down) will trip the health check if it
+  lasts more than about 30 to 45 minutes. Disable the check in Sens-o-Matic first.
 
 ## When Things Go Wrong
 
