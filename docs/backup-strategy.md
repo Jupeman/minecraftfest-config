@@ -76,6 +76,18 @@ snapshot waits for it.
 
 All commands run on the server.
 
+**One-page summary.** This runs without a password and changes nothing:
+
+```
+sudo mc-backup-status
+```
+
+It reports the timers, the result of the last run of each job, the hourly snapshot
+count for the last 24 hours, the mirror and SMART health, free space, the newest
+snapshots, the zip counts, and which servers are running. Look for `Failed`,
+`WARNING`, `refusing`, or a `[U_]` mirror line. The commands below are for digging into
+a specific problem.
+
 **Did the last backups succeed?**
 
 ```
@@ -217,6 +229,25 @@ The two drives are Hitachi serials `GTF002PBHGM8PF` and `GTE002PBHEW15E`. Replac
 failed one with any drive of 1 TB or more, then add it with
 `mdadm --manage /dev/md127 --add /dev/disk/by-id/<new drive>`. The resync takes about
 4.5 hours.
+
+## Who Can Do What
+
+The game servers and Velocity run as `charlie` and accept connections from the
+internet, so a bad plugin could run commands as `charlie`. To keep that from reaching
+root, and with it the backups, `charlie` has no passwordless root access except for
+these commands (`/etc/sudoers.d/50-minecraft`):
+
+- `sudo mc-backup-status` (no arguments)
+- `sudo systemctl start|stop|restart velocity.service`
+- `sudo systemctl start mc-backup.service` (take a snapshot now)
+
+Everything else that needs root asks for `charlie`'s password. Root's own password is
+locked, so **`charlie`'s password is the only way to get root**; keep it in the
+password manager. `charlie` is also not in the `lxd` group, which would otherwise be a
+second route to root.
+
+Day-to-day server work (`msm`, plugins, configs, worlds) runs as `charlie` and needs
+no root at all. The backup jobs run as root from systemd and are unaffected.
 
 ## Things To Know
 
